@@ -1,0 +1,44 @@
+services:
+  # Servidor Web Flask
+  web-server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: flask-web-server
+    hostname: web-server
+    ports:
+      - "8080:8080"
+    networks:
+      - desafio-network
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Cliente que faz requisições periódicas
+  http-client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: http-client
+    hostname: http-client
+    networks:
+      - desafio-network
+    depends_on:
+      web-server:
+        condition: service_healthy
+    restart: unless-stopped
+
+# Rede customizada para comunicação entre containers
+networks:
+  desafio-network:
+    name: desafio-network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
