@@ -1,0 +1,65 @@
+services:
+  tavern-database:
+    build:
+      context: ./database
+      dockerfile: Dockerfile
+    container_name: tavern-database
+    hostname: tavern-database
+    environment:
+      POSTGRES_DB: tavern_rpg
+      POSTGRES_USER: gamemaster
+      POSTGRES_PASSWORD: hero123
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - tavern-data:/var/lib/postgresql/data
+    networks:
+      - rpg-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gamemaster -d tavern_rpg"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    ports:
+      - "5432:5432"
+
+  game-master:
+    build:
+      context: ./game-master
+      dockerfile: Dockerfile
+    container_name: game-master
+    hostname: game-master
+    depends_on:
+      tavern-database:
+        condition: service_healthy
+    networks:
+      - rpg-network
+    restart: "no"
+    environment:
+      PYTHONUNBUFFERED: 1
+
+  quest-reader:
+    build:
+      context: ./quest-reader
+      dockerfile: Dockerfile
+    container_name: quest-reader
+    hostname: quest-reader
+    depends_on:
+      tavern-database:
+        condition: service_healthy
+    networks:
+      - rpg-network
+    restart: "no"
+    environment:
+      PYTHONUNBUFFERED: 1
+
+networks:
+  rpg-network:
+    name: rpg-network
+    driver: bridge
+
+volumes:
+  tavern-data:
+    name: tavern-data
+    driver: local
