@@ -1,0 +1,82 @@
+services:
+  arena-database:
+    build:
+      context: ./database
+      dockerfile: Dockerfile
+    container_name: arena-database
+    hostname: arena-database
+    environment:
+      POSTGRES_DB: battle_arena
+      POSTGRES_USER: arena_master
+      POSTGRES_PASSWORD: battle123
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - arena-db-data:/var/lib/postgresql/data
+    networks:
+      - arena-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U arena_master -d battle_arena"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  arena-cache:
+    image: redis:7-alpine
+    container_name: arena-cache
+    hostname: arena-cache
+    command: redis-server --appendonly yes
+    volumes:
+      - arena-cache-data:/data
+    networks:
+      - arena-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  battle-arena:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: battle-arena
+    hostname: battle-arena
+    ports:
+      - "5000:5000"
+    depends_on:
+      arena-database:
+        condition: service_healthy
+      arena-cache:
+        condition: service_healthy
+    networks:
+      - arena-network
+    restart: unless-stopped
+    environment:
+      FLASK_ENV: production
+      PYTHONUNBUFFERED: 1
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  arena-network:
+    name: arena-network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
+
+volumes:
+  arena-db-data:
+    name: arena-db-data
+    driver: local
+  arena-cache-data:
+    name: arena-cache-data
+    driver: local
