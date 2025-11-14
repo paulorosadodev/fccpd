@@ -1,0 +1,74 @@
+services:
+  player-service:
+    build:
+      context: ./player-service
+      dockerfile: Dockerfile
+    container_name: player-service
+    hostname: player-service
+    networks:
+      - gateway-network
+    restart: unless-stopped
+    environment:
+      PYTHONUNBUFFERED: 1
+      FLASK_ENV: production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  item-service:
+    build:
+      context: ./item-service
+      dockerfile: Dockerfile
+    container_name: item-service
+    hostname: item-service
+    networks:
+      - gateway-network
+    restart: unless-stopped
+    environment:
+      PYTHONUNBUFFERED: 1
+      FLASK_ENV: production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    hostname: api-gateway
+    ports:
+      - "8000:8000"
+    depends_on:
+      player-service:
+        condition: service_healthy
+      item-service:
+        condition: service_healthy
+    networks:
+      - gateway-network
+    restart: unless-stopped
+    environment:
+      PYTHONUNBUFFERED: 1
+      FLASK_ENV: production
+      PLAYER_SERVICE_URL: http://player-service:8002
+      ITEM_SERVICE_URL: http://item-service:8003
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+networks:
+  gateway-network:
+    name: gateway-network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.35.0.0/16
