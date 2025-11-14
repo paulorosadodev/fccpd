@@ -1,0 +1,54 @@
+services:
+  guild-service:
+    build:
+      context: ./guild-service
+      dockerfile: Dockerfile
+    container_name: guild-service
+    hostname: guild-service
+    ports:
+      - "8000:8000"
+    networks:
+      - microservices-network
+    restart: unless-stopped
+    environment:
+      PYTHONUNBUFFERED: 1
+      FLASK_ENV: production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  guild-reporter:
+    build:
+      context: ./guild-reporter
+      dockerfile: Dockerfile
+    container_name: guild-reporter
+    hostname: guild-reporter
+    ports:
+      - "8001:8001"
+    depends_on:
+      guild-service:
+        condition: service_healthy
+    networks:
+      - microservices-network
+    restart: unless-stopped
+    environment:
+      PYTHONUNBUFFERED: 1
+      FLASK_ENV: production
+      GUILD_SERVICE_URL: http://guild-service:8000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+networks:
+  microservices-network:
+    name: microservices-network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/16
